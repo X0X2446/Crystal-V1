@@ -31,6 +31,7 @@ const SERVERS = [
   { id: "vidplus", name: "VidPlus", build: (id: number, type: string) => `https://player.vidplus.to/embed/${type}/${id}` },
   { id: "vidrock", name: "VidRock", build: (id: number, type: string) => `https://vidrock.net/${type}/${id}` },
   { id: "rivestream", name: "Rive", build: (id: number, type: string) => `https://rivestream.org/embed?type=${type}&id=${id}` },
+  { id: "vidbinge", name: "VidBinge", build: (id: number, type: string, s?: number, e?: number) => type === "tv" ? `https://vidbinge.to/tv/${id}/${s||1}/${e||1}` : `https://vidbinge.to/movie/${id}` },
 ];
 
 function useLocal<T>(key: string, initial: T) {
