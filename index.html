@@ -6,22 +6,26 @@
     <title>Crystal — VidLux • Immersive</title>
     <link rel="icon" type="image/svg+xml" href="/crystal.svg">
     
+    <script src="/scramjet/scramjet.codecs.js"></script>
+    
     <script type="module">
-      // Register the proxy's brain (The Service Worker)
+      // Register the Service Worker (The unblocker)
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Note: we point to the scramjet folder we set up in server.js
           navigator.serviceWorker.register('/scramjet/sw.js', {
             scope: '/scramjet/'
-          }).then(() => console.log('Proxy ready!'))
-            .catch(err => console.error('Proxy failed:', err));
+          }).then(() => console.log('Proxy Engine: Active'))
+            .catch(err => console.error('Proxy Engine: Failed', err));
         });
       }
 
-      // The magic function for your React code
+      // Helper for your React code to unblock URLs
       window.proxyURL = function(url) {
         if (!url || url.includes('/scramjet/')) return url;
-        const encoded = btoa(url).replace(/\//g, '_').replace(/\+/g, '-').replace(/=/g, '');
+        const encoded = btoa(url)
+          .replace(/\//g, '_')
+          .replace(/\+/g, '-')
+          .replace(/=/g, '');
         return `/scramjet/${encoded}`;
       };
     </script>
