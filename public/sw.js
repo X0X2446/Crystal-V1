@@ -3,5 +3,7 @@ importScripts('/scramjet/scramjet.worker.js');
 const scramjet = new ScramjetServiceWorker();
 
 self.addEventListener('fetch', (event) => {
-  event.respondWith(scramjet.fetch(event));
+  if (event.request.url.includes('/scramjet/')) {
+    event.respondWith(scramjet.fetch(event));
+  }
 });
