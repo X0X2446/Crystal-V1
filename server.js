@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createScramjetServer } from '@mercuryworkshop/scramjet';
+import Scramjet from '@mercuryworkshop/scramjet'; // Changed this to the default import
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,17 +8,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
-// 1. Initialize the Scramjet Engine
-const scramjet = createScramjetServer('/scramjet/');
+// 1. Initialize Scramjet using the new Class constructor
+const scramjet = new Scramjet();
 
-// 2. THIS IS THE FIX: Tell Express to use Scramjet's logic for proxying
-// This must come BEFORE your static files and wildcard route
+// 2. Use the middleware to catch /scramjet/ requests
+// This MUST be above the express.static line
 app.use(scramjet.express);
 
-// 3. Serve your movie website files
+// 3. Serve your website files
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 4. Handle WebSockets (needed for some video providers to work)
+// 4. Handle WebSockets (for video streaming stability)
 httpServer.on('upgrade', (req, socket, head) => {
   if (scramjet.shouldRoute(req)) {
     scramjet.routeUpgrade(req, socket, head);
@@ -27,7 +27,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   }
 });
 
-// 5. Catch-all route for the frontend
+// 5. Catch-all for the frontend
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
