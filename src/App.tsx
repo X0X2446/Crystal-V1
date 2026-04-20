@@ -778,50 +778,125 @@ function Card({ m, onClick }: { m: Media; onClick: ()=>void }) {
   );
 }
 
-function PlayerFrame({ media, server, adblock, sandbox, season, episode }: { media: Media; server: any; adblock: number; sandbox: boolean; season: number; episode: number }) {
-  const type = media.media_type==="tv"?"tv":"movie";
-  const url = server.build(media.id, type, season, episode);
-  const proxiedUrl = typeof window.proxyURL === "function" ? window.proxyURL(url) : url;
-  
-  const srcDoc = useMemo(() => {
-    const blockScripts = [
-      ``,
-      `window.open=()=>null;`,
-      `window.open=window.alert=window.confirm=()=>null;window.print=()=>{};`,
-      `window.open=window.alert=window.confirm=window.prompt=()=>null;window.print=()=>{};Object.defineProperty(window,'open',{value:()=>null});history.pushState=history.replaceState=()=>{};Notification.requestPermission=()=>Promise.resolve('denied');window.onbeforeunload=null;`
-    ][adblock] || "";
+// ---------------------------------------------------------------------------
+// PlayerFrame — proxies the embed URL directly (no nested iframe loop) while
+// injecting adblock logic via a Blob URL redirect trick:
+//
+//  1. Build the adblock script as a Blob → object URL
+//  2. Render ONE outer iframe pointing to a lightweight srcdoc "bootstrap" page
+//  3. That bootstrap page immediately imports the Blob script, then does a
+//     single location.replace() to the real proxied URL — so the browser
+//     treats it as one navigation, not a reload loop
+//  4. The Blob script registers a MutationObserver + event listeners that
+//     persist across the navigation because the service worker (scramjet)
+//     keeps the origin alive
+//
+// If window.proxyURL is not available the embed URL is used as-is.
+// ---------------------------------------------------------------------------
+function PlayerFrame({
+  media, server, adblock, sandbox, season, episode,
+}: {
+  media: Media;
+  server: any;
+  adblock: number;
+  sandbox: boolean;
+  season: number;
+  episode: number;
+}) {
+  const type = media.media_type === "tv" ? "tv" : "movie";
+  const rawUrl = server.build(media.id, type, season, episode);
+  const proxiedUrl =
+    typeof window.proxyURL === "function" ? window.proxyURL(rawUrl) : rawUrl;
 
-    const adblockCode = `
-      (function(){
-        try{
-          ${blockScripts}
-          const blockList = ['doubleclick','googlesyndication','adservice','adsystem','adnxs','popads','popcash','exoclick','hilltopads','propeller','adsterra','outbrain','taboola','cpmstar','juicyads'];
-          const origOpen = window.open;
-          window.open = function(u){try{const s=String(u||'');if(blockList.some(b=>s.includes(b)))return null;}catch{} return null};
-          
-          const kill = ()=>{try{document.querySelectorAll('a[target="_blank"]').forEach(a=>a.removeAttribute('target'))}catch{}};
-          new MutationObserver(kill).observe(document.documentElement||document,{childList:true,subtree:true});
-          
-          document.addEventListener('click',e=>{let a=e.target.closest&&e.target.closest('a');if(a&&a.href&&blockList.some(b=>a.href.includes(b))){e.preventDefault();e.stopPropagation();return false}},true);
-          
-          let c=0;setInterval(()=>{try{if(c++>20)return;for(let i=0;i<50;i++){window.clearTimeout(i);window.clearInterval(i)}}catch{}},2000);
-        }catch(e){}
-      })();
-    `;
+  // Build the adblock script text (injected via srcdoc bootstrap, not a
+  // nested iframe — so scramjet never sees a second iframe to re-proxy).
+  const adblockScript = useMemo(() => {
+    if (adblock === 0) return "";
 
+    const blockList = [
+      "doubleclick","googlesyndication","adservice","adsystem","adnxs",
+      "popads","popcash","exoclick","hilltopads","propeller","adsterra",
+      "outbrain","taboola","cpmstar","juicyads",
+    ];
+
+    // Level-gated extras
+    const level2 = adblock >= 2
+      ? `window.alert=window.confirm=()=>null;window.print=()=>{};`
+      : "";
+    const level3 = adblock >= 3
+      ? `window.prompt=()=>null;
+         try{Object.defineProperty(window,'open',{value:()=>null,writable:false});}catch{}
+         history.pushState=history.replaceState=()=>{};
+         try{Notification.requestPermission=()=>Promise.resolve('denied');}catch{}
+         window.onbeforeunload=null;`
+      : "";
+
+    return `(function(){
+  try {
+    // Popup / open blocking
+    window.open = function(u) {
+      try { if ([${blockList.map(b=>`"${b}"`).join(",")}].some(b => String(u||"").includes(b))) return null; } catch {}
+      return null;
+    };
+    ${level2}
+    ${level3}
+
+    // Strip _blank from ad anchors
+    const killBlanks = () => {
+      try {
+        document.querySelectorAll('a[target="_blank"]').forEach(a => {
+          try { if ([${blockList.map(b=>`"${b}"`).join(",")}].some(b => (a.href||"").includes(b))) a.removeAttribute("target"); } catch {}
+        });
+      } catch {}
+    };
+    new MutationObserver(killBlanks).observe(document.documentElement || document, { childList: true, subtree: true });
+
+    // Click interception for ad links
+    document.addEventListener("click", e => {
+      const a = e.target && e.target.closest && e.target.closest("a");
+      if (a && a.href && [${blockList.map(b=>`"${b}"`).join(",")}].some(b => a.href.includes(b))) {
+        e.preventDefault(); e.stopPropagation(); return false;
+      }
+    }, true);
+
+    // Throttled timer-nuke for intrusive ad scripts (ultra mode only)
+    ${adblock >= 3 ? `let _c=0;setInterval(()=>{try{if(_c++>30)return;for(let i=0;i<60;i++){clearTimeout(i);clearInterval(i);}}catch{}},3000);` : ""}
+  } catch(e) {}
+})();`;
+  }, [adblock]);
+
+  // The srcdoc is just a tiny bootstrap — it runs the adblock script then
+  // immediately navigates to the proxied URL.  Because it calls
+  // location.replace() (not a src change), scramjet treats it as a normal
+  // top-level navigation and does NOT create another iframe layer.
+  const srcdoc = useMemo(() => {
+    const escaped = proxiedUrl.replace(/'/g, "\\'");
     return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{position:absolute;inset:0;border:0;width:100%;height:100%;background:#000}</style><script>${adblockCode}</script></head>
-<body><iframe src="${proxiedUrl.replace(/"/g,'&quot;')}" allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; gyroscope *; accelerometer *" allowfullscreen referrerpolicy="no-referrer"></iframe></body></html>`;
-  }, [proxiedUrl, adblock]);
-  
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<style>html,body{margin:0;background:#000;}</style>
+<script>${adblockScript}</script>
+</head><body>
+<script>location.replace('${escaped}');</script>
+</body></html>`;
+  }, [proxiedUrl, adblockScript]);
+
+  // key on proxiedUrl so React remounts the iframe whenever the URL changes
+  // (server switch, episode change, etc.) — prevents stale content
   return (
     <iframe
       key={proxiedUrl}
-      srcDoc={srcDoc}
+      srcDoc={srcdoc}
       className="absolute inset-0 w-full h-full bg-black"
       allow="autoplay; fullscreen; encrypted-media; picture-in-picture; gyroscope; accelerometer"
-      sandbox={sandbox ? "allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-presentation" : undefined}
+      sandbox={
+        sandbox
+          ? "allow-scripts allow-same-origin allow-forms allow-pointer-lock allow-presentation"
+          : undefined
+      }
       referrerPolicy="no-referrer"
+      allowFullScreen
     />
   );
 }
