@@ -4,20 +4,27 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Crystal — VidLux • Immersive</title>
-    <link rel="preconnect" href="https://image.tmdb.org">
     <link rel="icon" type="image/svg+xml" href="/crystal.svg">
-    <meta name="description" content="Crystal - minimalist immersive movie and anime streaming">
+    
+    <script src="/scramjet/scramjet.codecs.js"></script>
     
     <script type="module">
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // We register the service worker here, but we DON'T use a <script src="..."> tag for it
           navigator.serviceWorker.register('/scramjet/sw.js', {
             scope: '/scramjet/'
-          }).then(reg => console.log('Scramjet SW registered'))
-            .catch(err => console.error('Scramjet SW failed', err));
+          }).then(() => {
+            console.log('Proxy Engine: Ready');
+          }).catch(err => console.error('Proxy Engine: Failed', err));
         });
       }
+
+      // Helper function to use in your React code
+      window.proxyURL = function(url) {
+        if (!url) return "";
+        // Encodes the URL so the proxy can read it
+        return "/scramjet/" + btoa(url).replace(/\//g, "_").replace(/\+/g, "-").replace(/=/g, "");
+      };
     </script>
   </head>
   <body>
