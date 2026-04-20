@@ -6,23 +6,24 @@
     <title>Crystal — VidLux</title>
     
     <script type="module">
-      async function registerSW() {
+      async function initProxy() {
         if ('serviceWorker' in navigator) {
           try {
-            // Register from root, but set scope to /scramjet/
-            await navigator.serviceWorker.register('/sw.js', {
-              scope: '/scramjet/'
+            // Registering with a wide scope so it can see the /scramjet/ path
+            const registration = await navigator.serviceWorker.register('/sw.js', {
+              scope: '/'
             });
-            console.log('Scramjet SW: Registered');
+            console.log('Proxy Worker: Registered');
           } catch (err) {
-            console.error('Scramjet SW: Registration Failed', err);
+            console.error('Proxy Worker: Error', err);
           }
         }
       }
-      registerSW();
+      initProxy();
 
       window.proxyURL = function(url) {
         if (!url || url.includes('/scramjet/')) return url;
+        // Standard encoding for Scramjet v2
         const encoded = btoa(url).replace(/\//g, '_').replace(/\+/g, '-').replace(/=/g, '');
         return `/scramjet/${encoded}`;
       };
