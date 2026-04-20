@@ -8,13 +8,14 @@
     <link rel="icon" type="image/svg+xml" href="/crystal.svg">
     <meta name="description" content="Crystal - minimalist immersive movie and anime streaming">
     
-    <script type="module" src="/scramjet/sw.js"></script>
     <script type="module">
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
+          // We register the service worker here, but we DON'T use a <script src="..."> tag for it
           navigator.serviceWorker.register('/scramjet/sw.js', {
             scope: '/scramjet/'
-          });
+          }).then(reg => console.log('Scramjet SW registered'))
+            .catch(err => console.error('Scramjet SW failed', err));
         });
       }
     </script>
