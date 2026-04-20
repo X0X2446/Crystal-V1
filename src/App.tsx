@@ -1,5 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
+// Tell TS about our helper from index.html
+declare global {
+  interface Window {
+    proxyURL?: (url: string) => string;
+  }
+}
+
 type Media = {
   id: number;
   title?: string;
@@ -774,6 +781,7 @@ function Card({ m, onClick }: { m: Media; onClick: ()=>void }) {
 function PlayerFrame({ media, server, adblock, sandbox, season, episode }: { media: Media; server: any; adblock: number; sandbox: boolean; season: number; episode: number }) {
   const type = media.media_type==="tv"?"tv":"movie";
   const url = server.build(media.id, type, season, episode);
+  const proxiedUrl = typeof window.proxyURL === "function" ? window.proxyURL(url) : url;
   
   const srcDoc = useMemo(() => {
     const blockScripts = [
@@ -803,12 +811,12 @@ function PlayerFrame({ media, server, adblock, sandbox, season, episode }: { med
 
     return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"><meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests"><style>html,body{margin:0;height:100%;background:#000;overflow:hidden}iframe{position:absolute;inset:0;border:0;width:100%;height:100%;background:#000}</style><script>${adblockCode}</script></head>
-<body><iframe src="${url.replace(/"/g,'&quot;')}" allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; gyroscope *; accelerometer *" allowfullscreen referrerpolicy="no-referrer"></iframe></body></html>`;
-  }, [url, adblock]);
+<body><iframe src="${proxiedUrl.replace(/"/g,'&quot;')}" allow="autoplay *; fullscreen *; encrypted-media *; picture-in-picture *; gyroscope *; accelerometer *" allowfullscreen referrerpolicy="no-referrer"></iframe></body></html>`;
+  }, [proxiedUrl, adblock]);
   
   return (
     <iframe
-      key={url}
+      key={proxiedUrl}
       srcDoc={srcDoc}
       className="absolute inset-0 w-full h-full bg-black"
       allow="autoplay; fullscreen; encrypted-media; picture-in-picture; gyroscope; accelerometer"
