@@ -7,23 +7,21 @@
     <link rel="icon" type="image/svg+xml" href="/crystal.svg">
     
     <script type="module">
-      // 1. Register the unblocker service worker
+      // 1. Register the Service Worker (The unblocker)
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
           navigator.serviceWorker.register('/scramjet/sw.js', {
             scope: '/scramjet/'
-          }).then(() => console.log('Scramjet: Active'))
-            .catch(err => console.error('Scramjet: Failed', err));
+          }).then(() => console.log('Scramjet Proxy: Ready'))
+            .catch(err => console.error('Scramjet Proxy: Failed', err));
         });
       }
 
-      // 2. The function you use in your React code
+      // 2. The function to wrap URLs in your React code
       window.proxyURL = function(url) {
-        if (!url) return "";
-        // Don't proxy if it's already a proxied URL or a local file
-        if (url.includes('/scramjet/')) return url;
+        if (!url || url.includes('/scramjet/')) return url;
         
-        // Encode the target URL for the proxy engine
+        // Base64 encode the URL for the proxy
         const encoded = btoa(url)
           .replace(/\//g, '_')
           .replace(/\+/g, '-')
