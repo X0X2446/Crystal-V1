@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import Scramjet from '@mercuryworkshop/scramjet'; // Changed this to the default import
+import { ScramjetServer } from '@mercuryworkshop/scramjet'; 
 import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -8,17 +8,17 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
-// 1. Initialize Scramjet using the new Class constructor
-const scramjet = new Scramjet();
+// 1. Initialize the Scramjet Server class
+const scramjet = new ScramjetServer();
 
-// 2. Use the middleware to catch /scramjet/ requests
-// This MUST be above the express.static line
+// 2. Middleware to handle the proxying logic
+// This MUST stay above the express.static line to prevent the loop!
 app.use(scramjet.express);
 
 // 3. Serve your website files
 app.use(express.static(path.join(__dirname, 'dist')));
 
-// 4. Handle WebSockets (for video streaming stability)
+// 4. Handle WebSockets for video stability
 httpServer.on('upgrade', (req, socket, head) => {
   if (scramjet.shouldRoute(req)) {
     scramjet.routeUpgrade(req, socket, head);
@@ -27,7 +27,7 @@ httpServer.on('upgrade', (req, socket, head) => {
   }
 });
 
-// 5. Catch-all for the frontend
+// 5. Wildcard route for React single-page app support
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
