@@ -1,5 +1,5 @@
 import { createServer } from 'node:http';
-import { createBareServer } from '@mercuryworkshop/bare-mux';
+import { BareServer } from '@mercuryworkshop/bare-mux';
 import { createScramjetServer } from '@mercuryworkshop/scramjet';
 import express from 'express';
 import path from 'node:path';
@@ -9,11 +9,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const app = express();
 const httpServer = createServer(app);
 
-// Sets up the proxy paths
-const bare = createBareServer('/bare/');
+// Initialize the servers using the updated class constructor
+const bare = new BareServer('/bare/');
 const scramjet = createScramjetServer('/scramjet/');
 
-// IMPORTANT: This line tells the server to show your movie website
+// Serve the 'dist' folder created by the Vite build
 app.use(express.static(path.join(__dirname, 'dist')));
 
 app.on('upgrade', (req, socket, head) => {
@@ -26,7 +26,7 @@ app.on('upgrade', (req, socket, head) => {
   }
 });
 
-// This ensures that if you refresh the page, your website still loads
+// Handles client-side routing
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist', 'index.html'));
 });
