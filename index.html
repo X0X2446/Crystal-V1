@@ -3,29 +3,27 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Crystal — VidLux • Immersive</title>
-    <link rel="icon" type="image/svg+xml" href="/crystal.svg">
-    
-    <script src="/scramjet/scramjet.codecs.js"></script>
+    <title>Crystal — VidLux</title>
     
     <script type="module">
-      // Register the Service Worker (The unblocker)
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/scramjet/sw.js', {
-            scope: '/scramjet/'
-          }).then(() => console.log('Proxy Engine: Active'))
-            .catch(err => console.error('Proxy Engine: Failed', err));
-        });
+      async function registerSW() {
+        if ('serviceWorker' in navigator) {
+          try {
+            // Register from root, but set scope to /scramjet/
+            await navigator.serviceWorker.register('/sw.js', {
+              scope: '/scramjet/'
+            });
+            console.log('Scramjet SW: Registered');
+          } catch (err) {
+            console.error('Scramjet SW: Registration Failed', err);
+          }
+        }
       }
+      registerSW();
 
-      // Helper for your React code to unblock URLs
       window.proxyURL = function(url) {
         if (!url || url.includes('/scramjet/')) return url;
-        const encoded = btoa(url)
-          .replace(/\//g, '_')
-          .replace(/\+/g, '-')
-          .replace(/=/g, '');
+        const encoded = btoa(url).replace(/\//g, '_').replace(/\+/g, '-').replace(/=/g, '');
         return `/scramjet/${encoded}`;
       };
     </script>
