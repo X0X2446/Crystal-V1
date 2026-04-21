@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Crystal — VidLux</title>
+
+    <!--
+      Scramjet v2 requires scramjet.all.js to be loaded as a regular script
+      (not a module) BEFORE anything else. It exposes the global
+      $scramjetLoadController() function and the BareMux global.
+    -->
+    <script src="/scramjet/scramjet.all.js"></script>
+    <script src="/baremux/index.js"></script>
+
+    <script>
+      (async function initProxy() {
+        try {
+          // $scramjetLoadController() is provided by scramjet.all.js
+          const { ScramjetController } = $scramjetLoadController();
+
+          const ctrl = new ScramjetController({
+            // prefix must match the path the server serves scramjet files at
+            prefix: '/scramjet/',
+            files: {
+              wasm: '/scramjet/scramjet.wasm.wasm',
+              all:  '/scramjet/scramjet.all.js',
+              sync: '/scramjet/scramjet.sync.js',
+            },
+          });
+
+          // ctrl.init() registers /sw.js and waits until the SW controls this page.
+          // This is what was missing before — without it proxyURL() fires before
+          // the SW is active and the request falls through to the catch-all.
+          await ctrl.init('/sw.js');
+
+          // Set up BareMux with libcurl over a Wisp WebSocket.
+          // libcurl is faster than bare and handles more request types.
+          const conn = new BareMux.BareMuxConnection('/baremux/worker.js');
+          const wispUrl =
+            (location.protocol === 'https:' ? 'wss' : 'ws') +
+            '://' + location.host + '/wisp/';
+          if ((await conn.getTransport()) !== '/libcurl/index.mjs') {
+            await conn.setTransport('/libcurl/index.mjs', [{ websocket: wispUrl }]);
+          }
+
+          window.__scramjet = ctrl;
+
+          // proxyURL uses the controller's own encoder — correct for this version
+          window.proxyURL = (url) => ctrl.encodeUrl(url);
+
+          window.__proxyReady = true;
+          window.dispatchEvent(new Event('proxy-ready'));
+          console.log('[Crystal] Proxy ready');
+        } catch (err) {
+          console.error('[Crystal] Proxy init failed:', err);
+          // Graceful fallback: embeds still load directly without proxying
+          window.proxyURL = (url) => url;
+          window.__proxyReady = true;
+          window.dispatchEvent(new Event('proxy-ready'));
+        }
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
